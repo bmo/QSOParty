@@ -1,6 +1,6 @@
 use strict;
 use Data::Dumper;
-# 2010 Revision - 2010-12-16 
+# 2011 Revision - 2011-07-21
 # 
 # To use -- perl pl.pl 
 #use warnings;
@@ -17,9 +17,10 @@ my $ZONELIST = "zonelist" ;
 my $COUNTYLIST = "ks_cty" ;
 my $CTFILE = "cty.dat";
 my $STATESPROVS = "StatesAndProvinces.sec";
+my $STATESPROVS_SECTION = "50S13P";                     # section of the StatesAndProvinces.sec file that we're going to use
 
-my @BONUS_STATIONS = ( {call => 'KC0AHN', points  => 100, bonus_for_each_mode => 0},
-		       {call => 'KS0KS',  points  => 100, bonus_for_each_mode => 0} );
+my @BONUS_STATIONS = ( {call => 'K0A', points  => 100, bonus_for_each_mode => 0},
+		       {call => 'K0S',  points  => 100, bonus_for_each_mode => 0} );
 
 my @BONUS_STATION_BONUS_MODES = ('CW','PH','DG');   # for what modes do we count a bonus?
 
@@ -137,7 +138,8 @@ sub score_log {
     my %statemult;
 	my $mode; my $band;
     my %modeqcnt;
-    my %BONUS; 
+    my %BONUS;
+    my $BONUS_REF = \%BONUS;
     my $bonus_pts = 0;
     my $iam = '';
     my $i; my $om; my $rexch; my $wrkd; my $dupeindex; 
@@ -392,10 +394,10 @@ sub score_log {
 	    if (grep {$_->{call} eq $wrkd} @BONUS_STATIONS) {
 			   if ($debug_scoring) { print "BONUS STATION\t\t\tWorked bonus station $wrkd - mode: $mode\n"; }
 
-			   if (defined(%BONUS->{$wrkd})) {
-			       %BONUS->{$wrkd}->{$mode}+=1;
+			   if (defined($BONUS_REF->{$wrkd})) {
+			       $BONUS_REF->{$wrkd}->{$mode}+=1;
 			   } else {
-			       %BONUS->{$wrkd} = { $mode=> 1};
+			       $BONUS_REF->{$wrkd} = { $mode=> 1};
 			   }
 	    }
 			if (defined($COUNTY{$rexch})) {
@@ -490,14 +492,14 @@ BAILOUT:
 	  my $bcall = $i->{call};
 
 	  #print "BONUS TRACK ",Dumper(%BONUS->{$bcall});
-	  if (defined(%BONUS->{$bcall})) {
+	  if (defined($BONUS_REF->{$bcall})) {
 	      if (!($i->{bonus_for_each_mode})) {
 		  $bonus_pts += $i->{points};
 		  #print "BONUS  ",Dumper(%BONUS->{$i});
 		  next; # only count that the station was worked -- don't bonus for each mode
 	      } else { # score a bonus for each mode
 		  foreach $mode (@BONUS_STATION_BONUS_MODES) {
-		      if (defined(%BONUS->{$bcall}->{$mode})) {
+		      if (defined($BONUS_REF->{$bcall}->{$mode})) {
 			  # print "$bcall ",Dumper(%BONUS->{$bcall});
 			  # $bonus_pts += ($i->{points} * %BONUS->{$bcall}->{$mode});
 			  $bonus_pts += ($i->{points});
@@ -707,7 +709,8 @@ sub load_states_and_provinces {
 	while (<ZL>) {  # read the section of Type=50S8P Subtype= from file. ADD KL AK line to this file! 
 	  $_ =~ s/\r?\n$// ;
         # chomp;
-       last if (/^Type=\s*50S8P/) ;
+	# section of the StatesAndProvinces.sec file that we're going to use
+        last if (/^Type=\s*$STATESPROVS_SECTION/) ; # "50S13P" for KS; 50S8P for Salmon Run
 	}
     if (!defined($_)) { die "Can't find the section we need"; }
 	while (<ZL>) {
