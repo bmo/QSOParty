@@ -17,9 +17,10 @@ my $ZONELIST = "zonelist" ;
 my $COUNTYLIST = "ks_cty" ;
 my $CTFILE = "cty.dat";
 my $STATESPROVS = "StatesAndProvinces.sec";
+my $STATESPROVS_SECTION = "50S13P";                     # section of the StatesAndProvinces.sec file that we're going to use
 
-my @BONUS_STATIONS = ( {call => 'KC0AHN', points  => 100, bonus_for_each_mode => 0},
-		       {call => 'KS0KS',  points  => 100, bonus_for_each_mode => 0} );
+my @BONUS_STATIONS = ( {call => 'K0A', points  => 100, bonus_for_each_mode => 0},
+		       {call => 'K0S',  points  => 100, bonus_for_each_mode => 0} );
 
 my @BONUS_STATION_BONUS_MODES = ('CW','PH','DG');   # for what modes do we count a bonus?
 
@@ -662,8 +663,10 @@ sub load_states_and_provinces {
 	while (<ZL>) {  # read the section of Type=50S8P Subtype= from file. ADD KL AK line to this file! 
 	  $_ =~ s/\r?\n$// ;
         # chomp;
-       last if (/^Type=\s*50S8P/) ;
+	# section of the StatesAndProvinces.sec file that we're going to use
+       last if (/^Type=\s*$STATESPROVS_SECTION/) ; # "50S13P" for KS; 50S8P for Salmon Run
 	}
+	# print $_; # section
     if (!defined($_)) { die "Can't find the section we need"; }
 	while (<ZL>) {
 	  $_ =~ s/\r?\n$// ;
@@ -671,13 +674,13 @@ sub load_states_and_provinces {
        last if ( /^Type=/) ; # done reading stuff in
 	   next if ( /^'/ ) ; # skip commented lines
        @tokens = split / /;
-	   # print $#tokens;
+	    # print $#tokens;
        if ($#tokens == 1 ) {
-		   #print "Adding alias for ",$tokens[1]," ",$tokens[0],"\n";
+		   # print "Adding alias for ",$tokens[1]," ",$tokens[0],"\n";
 		  $STATEPROV{$tokens[0]} = $tokens[1];
 		}
 	   if ($#tokens == 0 ) {
-		  # print "Adding ",$tokens[0],"\n";
+		   # print "Adding ",$tokens[0],"\n";
 	      $STATEPROV{$tokens[0]} = $tokens[0];
 	   }
 	}
