@@ -20,12 +20,13 @@ my $STATESPROVS = "StatesAndProvinces.sec";
 my $STATESPROVS_SECTION = "50S13P";                     # section of the StatesAndProvinces.sec file that we're going to use
 
 my @BONUS_STATIONS = ( {call => 'K0A', points  => 100, bonus_for_each_mode => 0},
-		       {call => 'K0S',  points  => 100, bonus_for_each_mode => 0} );
+		       {call => 'KS0KS',  points  => 100, bonus_for_each_mode => 0} );
 
 my @BONUS_STATION_BONUS_MODES = ('CW','PH','DG');   # for what modes do we count a bonus?
 
 my $STATEQSOPARTY = "KS";                         # the state that this QSO PARTY is for.
 my @STATE_ARRL_SECTIONS = ('KS');           # the names of the ARRL-SECTIONS that indicate this log is in the 'home state'
+my $COUNT_OWN_STATE_AS_MULT = 1;            # count own state as a mult
 
 my $RULE_REVISION="4.12.9";    # what rules revision this corresponds to...
 
@@ -84,7 +85,6 @@ $FIELD_OFFSETS{'GENLOG'}="26:12,57:7,44:6";
 $FIELD_OFFSETS{'VE5BF'}="59:9,73:5,50:6";
 $FIELD_OFFSETS{'LOGEQF'}="55:12,73:5,48:6";
 $FIELD_OFFSETS{'W5TD'}="53:10,70:4,48:6";
-
 
 # 
 # normalize the mode -- 
@@ -317,7 +317,7 @@ sub score_log {
 				 last SCORETYPE;
 			  }
    			  if (defined($COUNTY{$sexch})) {
-				 print "***** Found $sexch as Washington county, using $STATEQSOPARTY\n\n";
+				 print "***** Found $sexch as in-state county, using $STATEQSOPARTY\n\n";
 				$is_in_state = 1;
 				last SCORETYPE;
 			  } 
@@ -410,14 +410,9 @@ sub score_log {
 					# removed VE from first clause
 					if (($om eq "VE") || ($om eq 'K') || ($om eq 'KH6') || ($om eq 'KL')) {
 						if (defined($STATEPROV{$rexch})) {
-							if ($debug_scoring) {
-								if ($statemult{$STATEPROV{$rexch}} == 0) {
-									print "\t\t\t\tnew state/prov mult: ",$STATEPROV{$rexch},"\n";
-								}	
-							}
-		 					$statemult{$rexch}++;
-    	                } else { print "Invalid State or Province - $rexch - QSO:\n",$qline,"\n"; }
-				    } else {
+						    add_a_state_mult(\%statemult, $rexch, $debug_scoring);
+						} else { print "Invalid State or Province - $rexch - QSO:\n",$qline,"\n"; }
+					} else {
 					    # todo - accept 'dx' here...
 						if ($om eq get_dxcc_entity($rexch)) {
 							if ($debug_scoring) {
@@ -493,10 +488,17 @@ BAILOUT:
 
        	  }
 		  print "\n";
+
+
+	  #
+	  # Exclude K as a DX multiplier
+	  #
+	  delete $dxmult{'K'};
+
           $dx_cnt = scalar(keys %dxmult);
-	      printf "DX:\t\t%10d\n",$dx_cnt;
-		  foreach $i (sort (keys %dxmult)) {
-			print $i," ";
+          printf "DX:\t\t%10d\n",$dx_cnt;
+	  foreach $i (sort (keys %dxmult)) {
+		print $i," ";
        	  }
           print "\n";
 
@@ -524,6 +526,29 @@ BAILOUT:
 			$bonus_pts,$dupecnt,$filename,$allsentexch;
 
 	  print SCF "\n";
+}
+
+sub add_a_state_mult {
+    my $multref = shift;
+    my $multname = shift;
+    my $debug_scoring = shift;
+
+    if ($debug_scoring) {
+	if ($$multref{$STATEPROV{$multname}} == 0) {
+	    print "\t\t\t\tnew state/prov mult: ",$STATEPROV{$multname},"\n";
+	}	
+    }
+
+    $$multref{$multname}++;
+
+    if ($COUNT_OWN_STATE_AS_MULT) {
+	if ($debug_scoring) {
+	    if ($$multref{$STATEPROV{$multname}} == 0) {
+		print "\t\t\t\tnew state/prov mult: ",$STATEPROV{$multname},"\n";
+	    }	
+	}
+	$multref->{$STATEQSOPARTY}++;
+    }
 }
 
 # read ct.dat file for DXCC entity information
