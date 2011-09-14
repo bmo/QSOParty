@@ -451,6 +451,10 @@ BAILOUT:
 
        	  }
 		  print "\n";
+          #
+	  # Exclude K as a DX multiplier
+	  #
+	  delete $dxmult{'K'};
           $dx_cnt = scalar(keys %dxmult);
 	      printf "DX:\t\t%10d\n",$dx_cnt;
 		  foreach $i (sort (keys %dxmult)) {
