@@ -27,6 +27,7 @@ my @BONUS_STATION_BONUS_MODES = ('CW','PH','DG');   # for what modes do we count
 my $STATEQSOPARTY = "KS";                         # the state that this QSO PARTY is for.
 my @STATE_ARRL_SECTIONS = ('KS');           # the names of the ARRL-SECTIONS that indicate this log is in the 'home state'
 my $COUNT_OWN_STATE_AS_MULT = 1;            # count own state as a mult
+my $COUNT_IN_STATE_COUNTIES_AS_MULTS = 0;   # count in-state counties as mults?
 
 my $RULE_REVISION="4.12.9";    # what rules revision this corresponds to...
 
@@ -38,7 +39,6 @@ my %QPT = ("CW"=>3,
 	   "DG"=>3,
 	   "PS"=>3,
 	   "PH"=>2);
-
 
 # load the zone list
 my %STZONE;
@@ -86,6 +86,22 @@ $FIELD_OFFSETS{'VE5BF'}="59:9,73:5,50:6";
 $FIELD_OFFSETS{'LOGEQF'}="55:12,73:5,48:6";
 $FIELD_OFFSETS{'W5TD'}="53:10,70:4,48:6";
 
+#
+# experimental way to parse N1MM log lines
+#
+sub parse_n1mm_log_line {
+  my $line = shift;
+  (my $qso, my $freq, my $mode, my $date, my $time, my $caller, my $rest_of_line)  = split(/\s+/,$line,7);
+  #" 59       BUT    KJ9B         59       IN "
+  # handle qso party but in n1mm where lines look like "QSO: 14253 PH 2009-08-29 1922 N0AG          59  MIA    VE3LKV        59  59  ON ";
+  $rest_of_line =~ /\s*\d{2,3}\s+(\S*)\s+(\S*)\s+\d{2,3}(\s*\d{2,3})*\s*(\S+)/;
+
+  my $sent = $1; 
+  my $worked = $2;
+  my $exch = $4;
+  return ($freq, $mode, $date, $time, $caller, $sent,$worked,$exch);
+}
+
 # 
 # normalize the mode -- 
 #
@@ -131,6 +147,8 @@ sub score_log {
     my $sect;
 	my $totpoints;
     my $state_cnt;
+    my $countable_wa_cnty = 0;
+
     my $claimed_score; my $dupecnt;
     my $wrked_offset; my $wrked_len; my $exch_offset; my $exch_len; my $sent_offset; my $sent_len; 
 	my $sexch;
@@ -224,13 +242,24 @@ sub score_log {
 		 $mode = $allfields[2];
 	         $band = $allfields[1];
                  # print "Mode: $mode Band: $band \n";
+
                  $band = int($band / 1000);
+
 		 GETFIELDS: {
 			 # these are the defaults... 
 	         $wrkd = substr($qline,$wrked_offset,$wrked_len);
     	         $wrkd =~ s/\s//g; # get rid of spaces
         	 $rexch = substr($qline,$exch_offset,$exch_len);
 		 $sexch = substr($qline,$sent_offset,$sent_len);
+
+		 if ('N1MM' eq $creator) {
+		     my $date;
+		     my $time;
+		     my $caller;
+		     ($band, $mode, $date, $time, $caller, $sexch,$wrkd,$rexch) = parse_n1mm_log_line($qline);
+                     $band = int($band / 1000);		        
+		     last GETFIELDS;
+		 }
 
 		if ($creator eq 'GENLOG') {
 			 if (substr($qline,0,3) ne 'QSO') { # UGH - specify we only take cabrillo next time
@@ -396,7 +425,7 @@ sub score_log {
 				# print "Other mult  = [$rexch]\n";
 				# score other entities...
 				 
-				if (($rexch eq $STATEQSOPARTY) || (!defined($DXCC_ENTITY{$rexch}) && !(defined($STATEPROV{$rexch})))) {
+				if ((!$COUNT_OWN_STATE_AS_MULT && ($rexch eq $STATEQSOPARTY)) || (!defined($DXCC_ENTITY{$rexch}) && !(defined($STATEPROV{$rexch})))) {
 					print "Suspect exchange $rexch for QSO: [$rexch] \n",$qline,"\n";
  				        if (my $entity=get_dxcc_entity($wrkd)) {
 					    print "\tCorrected exchange to $entity\n";
@@ -478,16 +507,21 @@ BAILOUT:
        	  }
 	  print "\n";
 	  printf "$STATEQSOPARTY Counties:\t%10d\n",$wa_cnty;
-      if ($is_in_state) {
-          $state_cnt = 0; 
+	  if ($is_in_state) {
+	      $state_cnt = 0; 
 	      $dx_cnt = 0;
-          $state_cnt = scalar(keys %statemult);
-      	  printf "\nSt/Prov:\t%10d\n",$state_cnt;
-          foreach $i (sort (keys %statemult)) {
-			print $i," ";
+	      $state_cnt = scalar(keys %statemult);
+	      if (!$COUNT_IN_STATE_COUNTIES_AS_MULTS) {
+		  print "In-state counties do NOT count as multipliers according to rules";
+	      } else {
+		  $countable_wa_cnty = $wa_cnty;
+	      }
 
-       	  }
-		  print "\n";
+	      printf "\nSt/Prov:\t%10d\n",$state_cnt;
+	      foreach $i (sort (keys %statemult)) {
+			print $i," ";
+	      }
+		  print "\n\n";
 
 
 	  #
@@ -503,8 +537,12 @@ BAILOUT:
           print "\n";
 
 	  }
-      printf "BONUS stations:\t%10d\n",$bonus_pts;
-      $calc_score = $totpoints * ($dx_cnt+$state_cnt + $wa_cnty) + $bonus_pts;
+      printf "BONUS stations:\t%10d\t\t\t",$bonus_pts;
+	if ($bonus_pts) {
+	    printf("%s\n",join(" ",keys(%BONUS)));
+	}
+      
+      $calc_score = $totpoints * ($dx_cnt + $state_cnt + $countable_wa_cnty) + $bonus_pts;
 	  printf "\nCLAIMED SCORE\t%10d\t\tCALCULATED SCORE  :\t%10d\n",$claimed_score,$calc_score;
       #foreach $i ('CALLSIGN','ARRL-SECTION','CATEGORY','CLAIMED-SCORE','CREATED-BY','OPERATORS','NAME', 'ADDRESS',
 	  #			  'CALCD-SCORE','CW-Q','PH-Q','DIG-Q','WA-COUNTIES','STATES','DX','BONUS-PTS') {
