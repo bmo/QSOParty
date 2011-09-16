@@ -213,11 +213,15 @@ sub score_log {
 		 }
 	     $sect =~ s/\s+// ;
              if ($sect ne "") {
-			print "ARRL Section Found: ",$sect,"\n";
+		 $sect =~ s/^\s*(.*?)\s*$/$1/;
+
+			print "ARRL Section Found: $sect";
 			if (grep {$_ eq $sect} @STATE_ARRL_SECTIONS) {
 			    $is_in_state = 1;
+			    print " - in state\n";
 			} else  {
 			    $is_in_state = 0;
+   			    print " - out of state\n";
 			}
 		}
 	  }
@@ -424,7 +428,7 @@ sub score_log {
                 #
 				# print "Other mult  = [$rexch]\n";
 				# score other entities...
-				 
+
 				if ((!$COUNT_OWN_STATE_AS_MULT && ($rexch eq $STATEQSOPARTY)) || (!defined($DXCC_ENTITY{$rexch}) && !(defined($STATEPROV{$rexch})))) {
 					print "Suspect exchange $rexch for QSO: [$rexch] \n",$qline,"\n";
  				        if (my $entity=get_dxcc_entity($wrkd)) {
@@ -433,6 +437,7 @@ sub score_log {
 					}
 				} else {
 				  if ($is_in_state) {
+
 					# handle dx entity..
 					$om = get_dxcc_entity($wrkd); 
 					# print "$wrkd is from $om, gave [$rexch]\n";
@@ -492,7 +497,14 @@ BAILOUT:
 
 	  }
       }
-      print "\nSummary for $iam\nMode\t\tQs \tPoints\n";
+      print "\nSummary for $iam:\n";
+      if ($is_in_state) {
+	  print "Scoring as IN-STATE\n";
+      }
+	else {
+	  print "Scoring as OUT-OF-STATE\n";
+	  }
+      print "Mode\t\tQs \tPoints\n";
       foreach $i (keys %modeqcnt) {
        	printf "%s\t%6d\t%10d\n",$i,$modeqcnt{$i},$modeqcnt{$i} * $QPT{$i};
 		$totpoints += $modeqcnt{$i} * $QPT{$i};
@@ -511,14 +523,16 @@ BAILOUT:
 	      $state_cnt = 0; 
 	      $dx_cnt = 0;
 	      $state_cnt = scalar(keys %statemult);
-	      if (!$COUNT_IN_STATE_COUNTIES_AS_MULTS) {
-		  print "In-state counties do NOT count as multipliers according to rules";
-	      } else {
-		  $countable_wa_cnty = $wa_cnty;
-	      }
-
-	      printf "\nSt/Prov:\t%10d\n",$state_cnt;
-	      foreach $i (sort (keys %statemult)) {
+	  }
+	 if ($is_in_state && !$COUNT_IN_STATE_COUNTIES_AS_MULTS) {
+	      print "In-state counties do NOT count as multipliers according to rules\n";
+	  } else {
+	      $countable_wa_cnty = $wa_cnty;
+	      print "Countable counties $countable_wa_cnty";
+	  }
+	
+	  printf "\nSt/Prov:\t%10d\n",$state_cnt;
+	  foreach $i (sort (keys %statemult)) {
 			print $i," ";
 	      }
 		  print "\n\n";
@@ -536,7 +550,7 @@ BAILOUT:
        	  }
           print "\n";
 
-	  }
+	  
       printf "BONUS stations:\t%10d\t\t\t",$bonus_pts;
 	if ($bonus_pts) {
 	    printf("%s\n",join(" ",keys(%BONUS)));
@@ -570,7 +584,7 @@ sub add_a_state_mult {
     my $multref = shift;
     my $multname = shift;
     my $debug_scoring = shift;
-
+    print "MULT NAME $multname";
     if ($debug_scoring) {
 	if ($$multref{$STATEPROV{$multname}} == 0) {
 	    print "\t\t\t\tnew state/prov mult: ",$STATEPROV{$multname},"\n";
